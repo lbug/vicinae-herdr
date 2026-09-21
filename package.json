@@ -1,0 +1,65 @@
+{
+  "$schema": "https://raw.githubusercontent.com/vicinaehq/vicinae/refs/heads/main/extra/schemas/extension.json",
+  "name": "herdr-status",
+  "title": "Herdr Status",
+  "description": "See which Herdr coding agents need input (blocked) or finished (done) — local and remote machines.",
+  "categories": ["Developer Tools", "Productivity"],
+  "keywords": ["herdr", "agents", "ai", "coding", "status", "blocked", "done"],
+  "platforms": ["Linux"],
+  "license": "MIT",
+  "author": "lukas",
+  "version": "0.1.0",
+  "contributors": [],
+  "pastContributors": [],
+  "icon": "icon.png",
+  "commands": [
+    {
+      "name": "status",
+      "title": "Herdr Agent Status",
+      "subtitle": "Herdr Status",
+      "description": "List all Herdr agents grouped by status: blocked, done, working, idle — including remote machines.",
+      "mode": "view"
+    },
+    {
+      "name": "attention",
+      "title": "Herdr Attention",
+      "subtitle": "Herdr Status",
+      "description": "Show a summary of agents needing attention (blocked / done).",
+      "mode": "no-view",
+      "interval": "1m"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "herdrPath",
+      "title": "Herdr binary",
+      "description": "Path to the herdr binary, or 'herdr' to resolve from PATH. Falls back to ~/.local/bin/herdr.",
+      "type": "textfield",
+      "required": false,
+      "default": "herdr",
+      "placeholder": "herdr"
+    },
+    {
+      "name": "refreshInterval",
+      "title": "Refresh interval (seconds)",
+      "description": "How often the status view re-queries herdr.",
+      "type": "textfield",
+      "required": false,
+      "default": "5",
+      "placeholder": "5"
+    }
+  ],
+  "scripts": {
+    "build": "vici build",
+    "dev": "vici develop",
+    "lint": "vici lint"
+  },
+  "dependencies": {
+    "@vicinae/api": "^0.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.2",
+    "vici": "^1.0.0"
+  }
+}
