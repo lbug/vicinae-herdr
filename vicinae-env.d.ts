@@ -6,11 +6,11 @@
  */
 
 type ExtensionPreferences = {
-  /** Herdr binary - Path to the herdr binary, or 'herdr' to resolve from PATH. Falls back to ~/.local/bin/herdr. */
+  /** Herdr binary - Path to the herdr binary. With the default 'herdr', ~/.local/bin/herdr is tried first, then PATH. */
 	"herdrPath": string;
 
 	/** Refresh interval (seconds) - How often the status view re-queries herdr. */
-	"refreshInterval": string;
+	"refreshInterval": "2" | "5" | "10" | "30";
 }
 
 declare type Preferences = ExtensionPreferences

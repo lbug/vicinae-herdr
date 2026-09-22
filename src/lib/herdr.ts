@@ -25,6 +25,7 @@ export interface HerdrAgent {
   foreground_cwd: string | null;
   focused: boolean;
   tab_id: string;
+  terminal_title_stripped?: string | null;
   agent_session?: AgentSessionRef | null;
 }
 
@@ -40,21 +41,26 @@ export interface MachineProfile {
   label: string;
 }
 
-/** Resolve the herdr binary: explicit preference first, then well-known locations, then PATH. */
+/** Resolve the herdr binary: explicit path first, then the installer's default location, then PATH. */
 export function resolveHerdrBin(preferred?: string): string {
   const pref = (preferred ?? "herdr").trim() || "herdr";
   if (pref.includes("/")) {
-    return pref;
+    return pref.startsWith("~/") ? join(homedir(), pref.slice(2)) : pref;
   }
-  const candidates = [join(homedir(), ".local/bin/herdr"), "/opt/homebrew/bin/herdr", "/usr/local/bin/herdr"];
-  for (const candidate of candidates) {
-    try {
-      if (existsSync(candidate)) return candidate;
-    } catch {
-      // ignore
-    }
+  const candidates = [join(homedir(), ".local/bin/herdr"), "/usr/local/bin/herdr"];
+  return candidates.find((candidate) => existsSync(candidate)) ?? pref;
+}
+
+/** Turn a failed herdr invocation into a message the user can act on. */
+export function describeHerdrError(error: unknown, bin: string): string {
+  const err = error as NodeJS.ErrnoException & { stderr?: string; killed?: boolean };
+  if (err?.code === "ENOENT") {
+    return `herdr binary not found (${bin}). Install herdr or set its path in the extension preferences.`;
   }
-  return pref;
+  if (err?.killed) return "herdr did not respond in time.";
+  const stderr = typeof err?.stderr === "string" ? err.stderr.trim() : "";
+  if (stderr) return stderr.split("\n")[0] ?? stderr;
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function runHerdr(bin: string, args: string[], machine?: string | null): Promise<string> {
@@ -105,19 +111,95 @@ export function agentTarget(agent: HerdrAgent): string {
   return agent.name ?? agent.pane_id;
 }
 
-export function agentLabel(agent: HerdrAgent): string {
-  return agent.display_agent ?? agent.name ?? (agent.agent ? shortAgent(agent.agent) : agent.pane_id);
+export interface AgentSnapshot {
+  entries: AgentEntry[];
+  /** Remote machines whose agent list could not be fetched. */
+  unreachableMachines: string[];
 }
 
-const AGENT_SHORT: Record<string, string> = {
-  opencode: "oc",
-  claude: "cc",
-  codex: "cx",
+/**
+ * Local agents plus every configured remote machine, sorted by urgency.
+ * Throws when the local herdr server cannot be queried; remote failures are reported, not thrown.
+ */
+export async function collectAgents(bin: string): Promise<AgentSnapshot> {
+  const machines = await listMachines(bin);
+  const [local, ...remote] = await Promise.allSettled([
+    listAgents(bin, null),
+    ...machines.map((m) => listAgents(bin, m.label)),
+  ]);
+  if (local.status === "rejected") throw local.reason;
+
+  const entries: AgentEntry[] = [];
+  const unreachableMachines: string[] = [];
+  const add = (agents: HerdrAgent[], machine: string | null) => {
+    for (const agent of agents) {
+      entries.push({ ...agent, machine, key: `${machine ?? "local"}:${agent.pane_id}:${agent.name ?? ""}` });
+    }
+  };
+  add(local.value, null);
+  remote.forEach((result, index) => {
+    const label = machines[index]?.label ?? "?";
+    if (result.status === "fulfilled") add(result.value, label);
+    else unreachableMachines.push(label);
+  });
+  entries.sort((a, b) => statusRank(a.agent_status) - statusRank(b.agent_status));
+  return { entries, unreachableMachines };
+}
+
+/**
+ * Session title from herdr, else the terminal title the agent sets. Terminal titles carry agent
+ * decoration ("OC | …", "π - …", spinner glyphs) that is stripped; bare agent names are ignored.
+ */
+export function agentTitle(agent: HerdrAgent): string | null {
+  if (agent.title) return agent.title;
+  const raw = (agent.terminal_title_stripped ?? "")
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .replace(/^\S{1,4}\s+[|\-–·:]\s+/, "")
+    .trim();
+  if (!raw || /^(claude code|claude|opencode|codex|pi)$/i.test(raw)) return null;
+  // Some agents (pi) put just the directory name in the title; the cwd is shown anyway.
+  const cwd = agent.foreground_cwd ?? agent.cwd;
+  if (cwd && raw === cwd.split("/").pop()) return null;
+  return raw;
+}
+
+/** Display names for every agent kind herdr supports (`herdr agent start --kind`). */
+const AGENT_NAMES: Record<string, string> = {
+  opencode: "OpenCode",
+  claude: "Claude Code",
+  codex: "Codex",
+  gemini: "Gemini CLI",
+  copilot: "GitHub Copilot CLI",
+  cursor: "Cursor Agent",
+  cline: "Cline",
+  qwen: "Qwen Code",
+  kimi: "Kimi CLI",
+  pi: "Pi",
+  amp: "Amp",
+  kiro: "Kiro",
+  droid: "Droid",
+  grok: "Grok CLI",
+  devin: "Devin",
+  letta: "Letta Code",
+  kilo: "Kilo Code",
+  qodercli: "Qoder CLI",
+  mastracode: "Mastra Code",
+  hermes: "Hermes Agent",
+  agy: "agy",
+  omp: "omp",
+  maki: "maki",
+  muse: "muse",
 };
 
-export function shortAgent(agent: string | null | undefined): string {
-  if (!agent) return "?";
-  return AGENT_SHORT[agent.toLowerCase()] ?? agent;
+export function agentDisplayName(agent: string | null | undefined): string {
+  if (!agent) return "Unknown agent";
+  return AGENT_NAMES[agent.toLowerCase()] ?? agent;
+}
+
+/** Bundled logo or monogram (assets/agent-<kind>.svg); null for kinds herdr added after this release. */
+export function agentIconAsset(agent: string | null | undefined): string | null {
+  const kind = agent?.toLowerCase();
+  return kind && kind in AGENT_NAMES ? `agent-${kind}.svg` : null;
 }
 
 /** Collapse the home directory: ~/projects instead of /home/user/projects. */

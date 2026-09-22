@@ -1,10 +1,7 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { existsSync, promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join, basename } from "node:path";
-
-const execFileAsync = promisify(execFile);
+import { withOpenCodeDb } from "./opencode-db";
 
 export interface SessionCost {
   costUsd: number;
@@ -18,7 +15,7 @@ export interface SessionCost {
   title?: string;
   /**
    * Current context size (opencode only): token total of the latest assistant step,
-   * which is what `oc` shows in its footer. Cumulative counters above are session totals.
+   * which is what OpenCode shows in its footer. Cumulative counters above are session totals.
    */
   contextTokens?: number;
 }
@@ -46,87 +43,64 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 30_000;
-const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 
-function resolveSqlite3(): string {
-  const candidates = [
-    join(homedir(), "miniconda3/bin/sqlite3"),
-    "/usr/bin/sqlite3",
-    "/usr/local/bin/sqlite3",
-  ];
-  for (const candidate of candidates) {
-    try {
-      if (existsSync(candidate)) return candidate;
-    } catch {
-      // ignore
-    }
-  }
-  return "sqlite3";
+interface OpenCodeSessionRow {
+  cost: number | null;
+  tokens_input: number | null;
+  tokens_output: number | null;
+  tokens_reasoning: number | null;
+  tokens_cache_read: number | null;
+  tokens_cache_write: number | null;
+  title: string | null;
 }
 
-function opencodeDbPath(): string | null {
-  const base = process.env["XDG_DATA_HOME"] ?? join(homedir(), ".local/share");
-  const db = join(base, "opencode/opencode.db");
-  return existsSync(db) ? db : null;
+interface OpenCodeStep {
+  tokens?: {
+    input?: number;
+    output?: number;
+    reasoning?: number;
+    cache?: { read?: number; write?: number };
+  };
 }
 
-async function openCodeCost(sessionId: string): Promise<SessionCost | null> {
-  if (!SAFE_ID.test(sessionId)) return null;
-  const db = opencodeDbPath();
-  if (!db) return null;
-  try {
-    const sqlite3 = resolveSqlite3();
-    const { stdout } = await execFileAsync(sqlite3, [
-      db,
-      "-separator",
-      "\t",
-      `SELECT cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, title FROM session_v2 WHERE id = '${sessionId}' LIMIT 1;`,
-    ]);
-    const parts = stdout.trim().split("\t");
-    if (parts.length < 3 || !parts[0]) return null;
+function openCodeCost(sessionId: string): SessionCost | null {
+  return withOpenCodeDb((db) => {
+    const row = db
+      .prepare(
+        "SELECT cost, tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, title FROM session_v2 WHERE id = ? LIMIT 1",
+      )
+      .get(sessionId) as OpenCodeSessionRow | undefined;
+    if (!row) return null;
     const cost: SessionCost = {
-      costUsd: Number(parts[0]) || 0,
-      inputTokens: Number(parts[1]) || 0,
-      outputTokens: Number(parts[2]) || 0,
-      reasoningTokens: Number(parts[3]) || 0,
-      cacheReadTokens: Number(parts[4]) || 0,
-      cacheWriteTokens: Number(parts[5]) || 0,
+      costUsd: row.cost ?? 0,
+      inputTokens: row.tokens_input ?? 0,
+      outputTokens: row.tokens_output ?? 0,
+      reasoningTokens: row.tokens_reasoning ?? 0,
+      cacheReadTokens: row.tokens_cache_read ?? 0,
+      cacheWriteTokens: row.tokens_cache_write ?? 0,
       source: "opencode",
-      title: parts[6]?.trim() || undefined,
+      title: row.title?.trim() || undefined,
     };
-    // Current context = latest assistant step total (what `oc` shows in its footer).
+    // Current context = token total of the latest assistant step (what OpenCode shows in its footer).
     try {
-      const { stdout: stepOut } = await execFileAsync(sqlite3, [
-        db,
-        `SELECT data FROM session_message WHERE session_id = '${sessionId}' AND type = 'assistant' ORDER BY seq DESC LIMIT 1;`,
-      ]);
-      const step = JSON.parse(stepOut.trim()) as {
-        tokens?: {
-          input?: number;
-          output?: number;
-          reasoning?: number;
-          cache?: { read?: number; write?: number };
-        };
-      };
-      const t = step.tokens;
+      const step = db
+        .prepare(
+          "SELECT data FROM session_message WHERE session_id = ? AND type = 'assistant' ORDER BY seq DESC LIMIT 1",
+        )
+        .get(sessionId) as { data?: string } | undefined;
+      const t = step?.data ? (JSON.parse(step.data) as OpenCodeStep).tokens : undefined;
       if (t) {
         cost.contextTokens =
-          (t.input ?? 0) +
-          (t.output ?? 0) +
-          (t.reasoning ?? 0) +
-          (t.cache?.read ?? 0) +
-          (t.cache?.write ?? 0);
+          (t.input ?? 0) + (t.output ?? 0) + (t.reasoning ?? 0) + (t.cache?.read ?? 0) + (t.cache?.write ?? 0);
       }
     } catch {
       // fall back to cumulative counters
     }
     return cost;
-  } catch {
-    return null;
-  }
+  });
 }
 
-async function findPiSessionFile(sessionValue: string): Promise<string | null> {
+export async function findPiSessionFile(sessionValue: string): Promise<string | null> {
   if (sessionValue.endsWith(".jsonl") && existsSync(sessionValue)) return sessionValue;
   const root = join(homedir(), ".pi/agent/sessions");
   if (!existsSync(root)) return null;
@@ -228,12 +202,12 @@ export async function getSessionCost(
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.cost;
 
-  const cost = normalized === "opencode" ? await openCodeCost(sessionValue) : await piCost(sessionValue);
+  const cost = normalized === "opencode" ? openCodeCost(sessionValue) : await piCost(sessionValue);
   cache.set(cacheKey, { at: Date.now(), cost });
   return cost;
 }
 
-/** Cost as `oc` shows it: rounded to cents. */
+/** Cost as OpenCode shows it: rounded to cents. */
 export function formatCost(cost: SessionCost): string {
   return `$${cost.costUsd.toFixed(2)}`;
 }

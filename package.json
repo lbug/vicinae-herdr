@@ -2,12 +2,25 @@
   "$schema": "https://raw.githubusercontent.com/vicinaehq/vicinae/refs/heads/main/extra/schemas/extension.json",
   "name": "herdr-status",
   "title": "Herdr Status",
-  "description": "See which Herdr coding agents need input (blocked) or finished (done) — local and remote machines.",
-  "categories": ["Developer Tools", "Productivity"],
-  "keywords": ["herdr", "agents", "ai", "coding", "status", "blocked", "done"],
-  "platforms": ["Linux"],
+  "description": "See which Herdr coding agents need input (blocked) or have finished (done), across local and remote machines, with live session cost.",
+  "categories": [
+    "Developer Tools",
+    "Productivity"
+  ],
+  "keywords": [
+    "herdr",
+    "agents",
+    "ai",
+    "coding",
+    "status",
+    "blocked",
+    "done"
+  ],
+  "platforms": [
+    "Linux"
+  ],
   "license": "MIT",
-  "author": "lukas",
+  "author": "lbug",
   "version": "0.1.0",
   "contributors": [],
   "pastContributors": [],
@@ -24,7 +37,7 @@
       "name": "attention",
       "title": "Herdr Attention",
       "subtitle": "Herdr Status",
-      "description": "Show a summary of agents needing attention (blocked / done).",
+      "description": "Update the command subtitle every minute with how many agents are blocked or done.",
       "mode": "no-view",
       "interval": "1m"
     }
@@ -33,7 +46,7 @@
     {
       "name": "herdrPath",
       "title": "Herdr binary",
-      "description": "Path to the herdr binary, or 'herdr' to resolve from PATH. Falls back to ~/.local/bin/herdr.",
+      "description": "Path to the herdr binary. With the default 'herdr', ~/.local/bin/herdr is tried first, then PATH.",
       "type": "textfield",
       "required": false,
       "default": "herdr",
@@ -43,10 +56,27 @@
       "name": "refreshInterval",
       "title": "Refresh interval (seconds)",
       "description": "How often the status view re-queries herdr.",
-      "type": "textfield",
+      "type": "dropdown",
       "required": false,
       "default": "5",
-      "placeholder": "5"
+      "data": [
+        {
+          "title": "2 seconds",
+          "value": "2"
+        },
+        {
+          "title": "5 seconds",
+          "value": "5"
+        },
+        {
+          "title": "10 seconds",
+          "value": "10"
+        },
+        {
+          "title": "30 seconds",
+          "value": "30"
+        }
+      ]
     }
   ],
   "scripts": {
