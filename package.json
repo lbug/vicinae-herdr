@@ -21,6 +21,10 @@
   ],
   "license": "MIT",
   "author": "lbug",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lbug/vicinae-herdr"
+  },
   "version": "0.1.0",
   "contributors": [],
   "pastContributors": [],
@@ -32,14 +36,6 @@
       "subtitle": "Herdr Status",
       "description": "List all Herdr agents grouped by status: blocked, done, working, idle — including remote machines.",
       "mode": "view"
-    },
-    {
-      "name": "attention",
-      "title": "Herdr Attention",
-      "subtitle": "Herdr Status",
-      "description": "Update the command subtitle every minute with how many agents are blocked or done.",
-      "mode": "no-view",
-      "interval": "1m"
     }
   ],
   "preferences": [

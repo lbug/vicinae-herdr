@@ -7,15 +7,31 @@ finished (`done`) — local and remote machines — without leaving
 Each agent row shows live session cost for OpenCode and Pi sessions: spend
 rounded to cents and the current context size, matching the OpenCode footer.
 
+![Agents grouped by status](media/list.png)
+
+![Detail panel with the last response and session cost](media/detail.png)
+
 ## Commands
 
-- **Herdr Agent Status** (view) — agents grouped by status (needs input,
-  finished, working, idle), auto-refreshing. Each row shows the agent's logo,
-  its working directory and session title, cost, and a status icon. Remote machines configured in
-  herdr are queried too; unreachable ones are named in the title bar.
-  Actions per agent: Focus (jumps to the pane, marks it seen), Copy Last
-  Response (`Ctrl+Shift+C`), Copy Terminal Output (`Ctrl+Shift+T`), Copy Pane
-  ID, Show Details (`Ctrl+D`), Refresh (`Ctrl+R`).
+### Herdr Agent Status
+
+Agents grouped by status — **Needs input**, **Finished**, **Working**, **Idle** —
+auto-refreshing. Each row shows the agent's logo, its project folder (prefixed
+with the machine for remote agents, e.g. `laptop:my-app`), the session title,
+cost, and a status icon; the full path is in the detail panel. Search matches the project, path,
+session title, agent, and machine.
+
+Remote machines configured in herdr are queried too; unreachable ones are named
+in the title bar. If a poll fails, the last known state stays visible.
+
+| Action | Shortcut |
+| --- | --- |
+| Focus Agent (jumps to the pane, marks it seen) | `Enter` |
+| Copy Last Response | `Ctrl+Shift+C` |
+| Copy Terminal Output | `Ctrl+Shift+T` |
+| Copy Pane ID | |
+| Show / Hide Details | `Ctrl+D` |
+| Refresh | `Ctrl+R` |
 
 **Copy Last Response** copies the agent's last message as clean Markdown,
 read from the agent's own session store (OpenCode, Pi, Claude Code) — no
@@ -25,9 +41,6 @@ machines it falls back to the terminal output with TUI borders stripped.
 **Show Details** opens a side panel with the selected agent's last response,
 rendered as Markdown, next to its status, session and cost. It follows along
 while the agent is working.
-- **Herdr Attention** (background, every minute) — keeps the command's subtitle
-  in root search up to date, e.g. `🔔 2 blocked · ✅ 1 done · 0 working`.
-  Run it manually to get the same summary as a HUD.
 
 ## Requirements
 

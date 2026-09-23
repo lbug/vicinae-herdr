@@ -20,21 +20,11 @@ declare namespace Preferences {
 	export type Status = ExtensionPreferences & {
 		
 	}
-
-	/** Command: Herdr Attention */
-	export type Attention = ExtensionPreferences & {
-		
-	}
 }
 
 declare namespace Arguments {
   /** Command: Herdr Agent Status */
 	export type Status = {
-		
-	}
-
-	/** Command: Herdr Attention */
-	export type Attention = {
 		
 	}
 }

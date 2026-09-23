@@ -152,7 +152,7 @@ export default function Command() {
       setUpdatedAt(new Date());
       void refreshCosts(snapshot.entries);
     } catch (caught) {
-      setEntries([]);
+      // Keep the last snapshot on a failed poll so one slow herdr call does not blank the list.
       setError(describeHerdrError(caught, bin));
     } finally {
       inFlight.current = false;
@@ -175,6 +175,7 @@ export default function Command() {
   const titleParts = ["Herdr", `${blocked} blocked`, `${done} done`];
   if (unreachable.length > 0) titleParts.push(`unreachable: ${unreachable.join(", ")}`);
   if (updatedAt) titleParts.push(`updated ${updatedAt.toLocaleTimeString()}`);
+  if (error) titleParts.push("⚠ herdr unreachable, showing last data");
 
   return (
     <List
@@ -184,7 +185,7 @@ export default function Command() {
       onSelectionChange={setSelectedKey}
       navigationTitle={updatedAt ? titleParts.join(" · ") : "Herdr agents"}
     >
-      {error && (
+      {error && entries.length === 0 && (
         <List.EmptyView
           icon={Icon.Warning}
           title="Could not reach herdr"
@@ -256,11 +257,15 @@ function AgentRow({
   const where = shortenHome(entry.foreground_cwd ?? entry.cwd);
   // The stored session title is complete; terminal titles are often truncated, so they only fill in.
   const sessionName = cost?.title || agentTitle(entry) || undefined;
-  // Path first, then session; remote paths read like ssh targets ("host:~/src").
+  // Remote paths read like ssh targets ("host:~/src").
   const location = entry.machine ? `${entry.machine}:${where || "?"}` : where;
-  // The agent logo identifies the agent, so the path leads — unless herdr has a custom name for it.
+  // The project folder is what you scan for; the full path is in the detail panel and search.
+  const project = where.split("/").filter(Boolean).pop() || where;
+  const projectLabel = entry.machine ? `${entry.machine}:${project || "?"}` : project;
+  // The agent logo identifies the agent, so the project leads — unless herdr has a custom name for it,
+  // in which case the location moves to the subtitle.
   const customName = entry.display_agent ?? entry.name;
-  const title = customName ?? (location || agentName);
+  const title = customName ?? (projectLabel || agentName);
   const subtitle = [customName ? location : null, sessionName].filter(Boolean).join(" · ");
   const ctxTokens = cost ? (cost.contextTokens ?? headlineTokens(cost)) : undefined;
   const costText =
@@ -272,7 +277,10 @@ function AgentRow({
       title={title}
       subtitle={subtitle || undefined}
       icon={{ value: agentIcon(entry.agent), tooltip: agentName }}
-      keywords={[entry.agent, agentName, entry.machine].filter((k): k is string => Boolean(k))}
+      // Search matches title and keywords only, so the path and session must be keywords too.
+      keywords={[entry.agent, agentName, entry.machine, project, where, sessionName].filter(
+        (k): k is string => Boolean(k),
+      )}
       accessories={[
         ...(costText
           ? [{ text: costText, tooltip: cost?.contextTokens !== undefined ? "Session cost · current context" : "Session cost · tokens" }]
@@ -291,7 +299,7 @@ function AgentRow({
                 <List.Item.Detail.Metadata.Label title="Context" text={`${formatTokens(cost.contextTokens)} tok`} />
               )}
               {cost && <List.Item.Detail.Metadata.Label title="Session cost" text={formatCostExact(cost)} />}
-              <List.Item.Detail.Metadata.Label title="Status" text={entry.agent_status} />
+              <List.Item.Detail.Metadata.Label title="Status" text={statusTitle(entry.agent_status)} />
               {where && <List.Item.Detail.Metadata.Label title="Cwd" text={where} />}
               {entry.machine && <List.Item.Detail.Metadata.Label title="Machine" text={entry.machine} />}
               <List.Item.Detail.Metadata.Separator />
