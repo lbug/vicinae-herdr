@@ -41,14 +41,18 @@ export interface MachineProfile {
   label: string;
 }
 
-/** Resolve the herdr binary: explicit path first, then the installer's default location, then PATH. */
+/**
+ * Resolve the herdr binary: explicit path first, then the installer's default location, then PATH.
+ * herdr's installer puts it in ~/.local/bin, which is often missing from PATH when Vicinae is
+ * started by the desktop session rather than a login shell.
+ */
 export function resolveHerdrBin(preferred?: string): string {
   const pref = (preferred ?? "herdr").trim() || "herdr";
   if (pref.includes("/")) {
     return pref.startsWith("~/") ? join(homedir(), pref.slice(2)) : pref;
   }
-  const candidates = [join(homedir(), ".local/bin/herdr"), "/usr/local/bin/herdr"];
-  return candidates.find((candidate) => existsSync(candidate)) ?? pref;
+  const installed = join(homedir(), ".local/bin/herdr");
+  return existsSync(installed) ? installed : pref;
 }
 
 /** Turn a failed herdr invocation into a message the user can act on. */

@@ -7,6 +7,7 @@ import {
   getPreferenceValues,
   Icon,
   Image,
+  Keyboard,
   List,
   showToast,
   Toast,
@@ -27,11 +28,6 @@ import {
 } from "./lib/herdr";
 import { cleanTerminalOutput, getLastResponse } from "./lib/transcript";
 import { formatCost, formatCostExact, formatTokens, getSessionCost, headlineTokens, type SessionCost } from "./lib/cost";
-
-interface Preferences {
-  herdrPath?: string;
-  refreshInterval?: string;
-}
 
 const SECTIONS: Array<{ status: AgentStatus; title: string; icon: Image.ImageLike }> = [
   { status: "blocked", title: "Needs input", icon: { source: Icon.Exclamationmark, tintColor: Color.Red } },
@@ -106,7 +102,7 @@ function formatTokenBreakdown(cost: SessionCost): string {
 }
 
 export default function Command() {
-  const preferences = getPreferenceValues<Preferences>();
+  const preferences = getPreferenceValues<Preferences.Status>();
   const bin = resolveHerdrBin(preferences.herdrPath);
   const intervalSec = Math.max(2, Number.parseInt(preferences.refreshInterval ?? "5", 10) || 5);
 
@@ -388,7 +384,7 @@ function AgentRow({
             <Action
               title="Refresh"
               icon={Icon.RotateAntiClockwise}
-              shortcut={{ modifiers: ["cmd"], key: "r" }}
+              shortcut={Keyboard.Shortcut.Common.Refresh}
               onAction={onRefresh}
             />
           </ActionPanel.Section>

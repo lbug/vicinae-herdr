@@ -25,17 +25,6 @@ export function headlineTokens(cost: SessionCost): number {
   return cost.inputTokens + cost.outputTokens;
 }
 
-/** Everything processed, for the detail breakdown. */
-export function totalTokens(cost: SessionCost): number {
-  return (
-    cost.inputTokens +
-    cost.outputTokens +
-    cost.reasoningTokens +
-    cost.cacheReadTokens +
-    cost.cacheWriteTokens
-  );
-}
-
 interface CacheEntry {
   at: number;
   cost: SessionCost | null;
